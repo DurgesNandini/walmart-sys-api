@@ -1,0 +1,92 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<mule xmlns:ee="http://www.mulesoft.org/schema/mule/ee/core" xmlns:db="http://www.mulesoft.org/schema/mule/db"
+	xmlns:http="http://www.mulesoft.org/schema/mule/http"
+	xmlns="http://www.mulesoft.org/schema/mule/core" xmlns:doc="http://www.mulesoft.org/schema/mule/documentation" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://www.mulesoft.org/schema/mule/core http://www.mulesoft.org/schema/mule/core/current/mule.xsd
+http://www.mulesoft.org/schema/mule/http http://www.mulesoft.org/schema/mule/http/current/mule-http.xsd
+http://www.mulesoft.org/schema/mule/db http://www.mulesoft.org/schema/mule/db/current/mule-db.xsd
+http://www.mulesoft.org/schema/mule/ee/core http://www.mulesoft.org/schema/mule/ee/core/current/mule-ee.xsd">
+	
+	<flow name="get:\products" doc:id="944b42f7-50d9-427b-99d0-ebdc8c8b5df2" >
+		<db:select doc:name="Select Product details" doc:id="2c9344c8-ca7a-409d-ae9b-5b4c9ed04a3d" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT * FROM DeliveryDetails;]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Converting into json" doc:id="912fdeb5-841d-44f6-8d03-31f1a18acc1d" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+payload map ( payload01 , indexOfPayload01 ) -> {
+	orderID: payload01.order_id as String,
+	productTypeID: payload01.product_type_id as String,
+	quantity: payload01.quantity as String,
+	storeID: payload01.store_id as String,
+	storeName: payload01.store_name,
+	storeAddress: payload01.store_address,
+	storeDistance: payload01.store_distance,
+	storeContactNumber: payload01.store_contact_number as String
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="get:\product\(order_id)" doc:id="a73b8f32-e82a-4dde-93bb-371ba46fd798" >
+		<db:select doc:name="Get Product details by order_id" doc:id="f8033474-4577-414e-864e-26fdfc912491" config-ref="Database_Config">
+			<db:sql ><![CDATA[SELECT * FROM DeliveryDetails WHERE order_id = :id;]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{ 
+"id": attributes.uriParams.order_id
+}]]]></db:input-parameters>
+		</db:select>
+		<ee:transform doc:name="Converting into json" doc:id="495439ac-78c7-4ff4-98ed-92b211397edc" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+if (sizeOf(payload)<=0)
+	(message: "No record found with this order_id!")
+	
+else
+	(
+	payload map ( payload01 , indexOfPayload01 ) -> {
+	orderID: payload01.order_id as Number,
+	storeID: payload01.store_id as Number,
+	storeName: payload01.store_name,
+	storeAddress: payload01.store_address,
+	storeDistance: payload01.store_distance,
+	storeContactNumber: payload01.store_contact_number as Number,
+	productTypeID: payload01.product_type_id as Number,
+	quantity: payload01.quantity as Number
+})]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+	<flow name="post:\products" doc:id="79975ca6-3640-40cd-b874-f3015624aaea" >
+		<db:insert doc:name="Insert data into delivery table" doc:id="e31274e4-fe37-433e-b414-9ea1601b9785" config-ref="Database_Config">
+			<db:sql ><![CDATA[insert into DeliveryDetails (store_id,store_name,store_address,store_distance,store_contact_number,product_type_id,quantity) 
+values (:store_id,:store_name,:store_address,:store_distance,:store_contact_number,:product_type_id,:quantity);]]></db:sql>
+			<db:input-parameters ><![CDATA[#[{
+"store_id": payload.storeID, 
+"store_name": payload.storeName, 
+"store_address" : payload.storeAddress, 
+"store_distance": payload.storeDistance, 
+"store_contact_number": "98399849595", 
+"product_type_id": payload.productTypeID, 
+"quantity": payload.quantity 
+}]]]></db:input-parameters>
+		</db:insert>
+		<db:select doc:name="Fetech orderID" doc:id="8fc29658-2d7e-4e47-ad95-ea191e882f66" config-ref="Database_Config">
+			<db:sql ><![CDATA[select max(order_id) from DeliveryDetails;]]></db:sql>
+		</db:select>
+		<ee:transform doc:name="Converting into json" doc:id="b0c3d826-6280-4789-93a9-ccd540da1ee4" >
+			<ee:message >
+				<ee:set-payload ><![CDATA[%dw 2.0
+output application/json
+---
+{
+	"message": "Product details Updated Successfully ",
+	"Order ID": payload."max(order_id)"
+	
+}]]></ee:set-payload>
+			</ee:message>
+		</ee:transform>
+	</flow>
+</mule>
